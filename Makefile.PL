@@ -15,7 +15,8 @@ WriteMakefile(
         'Test::More' => 0,
         'WWW::Mechanize' => 0,
         'Compress::Zlib' => 0,
-        'Carp' => 0
+        'Carp' => 0,
+		'HTML::TagParser' => 0
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Net-SMS-160By2-*' },

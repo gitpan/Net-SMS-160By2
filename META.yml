@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Net-SMS-160By2
-version:            0.01
+version:            0.02
 abstract:           Send SMS using your 160By2 account!
 author:
     - Mohan Prasad Gutta <mohanprasadgutta@gmail.com>
@@ -11,10 +11,11 @@ configure_requires:
 build_requires:
     ExtUtils::MakeMaker:  0
 requires:
-    Carp:            0
-    Compress::Zlib:  0
-    Test::More:      0
-    WWW::Mechanize:  0
+    Carp:             0
+    Compress::Zlib:   0
+    HTML::TagParser:  0
+    Test::More:       0
+    WWW::Mechanize:   0
 no_index:
     directory:
         - t

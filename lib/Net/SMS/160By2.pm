@@ -8,6 +8,8 @@ use Carp;
 
 # Load this to make HTTP Requests
 use WWW::Mechanize;
+use HTML::TagParser;
+use URI;
 
 # Load this to uncompress the gzip content of http response.
 use Compress::Zlib;
@@ -18,15 +20,16 @@ Net::SMS::160By2 - Send SMS using your 160By2 account!
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 our $DEBUG = 1;
 
-our $HOME_URL       = 'http://www.160by2.com/index.aspx';
-our $SENDSMS_URL     = 'http://www.160by2.com/publicsms_sendsms.aspx'; 
+our $HOME_URL       = 'http://160by2.com/Login';
+our $SENDSMS_URL     = 'http://160by2.com/FebSendSMS';
+our $SENDSMS_SUBMIT_URL     = 'http://160by2.com/Feb7SendSMS';
 
 =head1 SYNOPSIS
 
@@ -74,7 +77,8 @@ sub new {
 		'username' => $username,
 		'password' => $password,
 		'mobile'   => undef,
-		'message'  => undef
+		'message'  => undef,
+		'query_form' => undef
 	}, $class;
 	return $self;
 }
@@ -103,6 +107,7 @@ sub send_sms {
 
 	# create mechanize object
 	my $mech = WWW::Mechanize->new(autocheck => 1);
+	$mech->agent_alias( 'Windows Mozilla' );
 	
 	# Now connect to 160By2 Website login page
 	$mech->get($HOME_URL);
@@ -127,11 +132,11 @@ sub _login {
 	my ($self, $mech) = @_;
 
 	# Get login form with htxt_UserName, txt_Passwd
-	$mech->form_with_fields('htxt_UserName', 'txt_Passwd');
+	$mech->form_with_fields('username', 'password');
 	
 	# set htxt_UserName, txt_Passwd
-	$mech->field('htxt_UserName', $self->{username});
-	$mech->field('txt_Passwd', $self->{password});
+	$mech->field('username', $self->{username});
+	$mech->field('password', $self->{password});
 	
 	# submit form
 	$mech->submit_form();
@@ -143,42 +148,64 @@ sub _login {
 		$response = Compress::Zlib::memGunzip( $response );
 		$mech->update_html( $response ) 
 	}
+	my $home_uri = URI->new($mech->base());
+	my @q = $home_uri->query_form;
+	$self->{query_form} = \@q;
 	return $mech;
 }
 
 sub _send {
 	my ($self, $mech) = @_;
 	
-	# Get content of SendSMS form page
-	$mech->get($SENDSMS_URL);
+	# Try to go to Home Page
+	my $sendsms_uri = URI->new($SENDSMS_URL);
+	$sendsms_uri->query_form(@{$self->{query_form}});
 
+	my $sendsms_submit_uri = URI->new($SENDSMS_SUBMIT_URL);
+	$sendsms_submit_uri->query_form(@{$self->{query_form}});
+	
+	# Get content of SendSMS form page
+	$mech->get($sendsms_uri->as_string);
+
+	my $response;
 	if ( $mech->response->header('Content-Encoding') eq 'gzip' ) {
 		# handle gzip content
-		my $response = $mech->response->content;
+		$response = $mech->response->content;
 		$response = Compress::Zlib::memGunzip( $response );
-		$mech->update_html( $response ); 
-	}
-	# Get login form with htxt_UserName, txt_Passwd
-	my $form = $mech->form_with_fields('txt_mobileno', 'txt_send_sms', 'act_mnos');
-	# set htxt_UserName, txt_Passwd
-	$mech->field('txt_mobileno', $self->{mobile});
-	$mech->field('txt_send_sms', $self->{message});
-	my $mobile = $self->{mobile};
-	$mech->field('act_mnos', ($mobile =~ /^91/ && length($mobile) > 10 ? "$mobile," : "91$mobile,"));
+		$mech->update_html( $response );
+	}	    
+	# set form action
+	my $form = $mech->form_name('frm_sendsms');
+	$form->action($sendsms_submit_uri);	
 	
+	# Use TagParser here, this will make our job easier
+	my $tp = HTML::TagParser->new($response);
+	my $sm_form = $tp->getElementById( "frm_sendsms" );
+	my $sm_form_tree = $sm_form->subTree();
+	
+	# User HTML::TagParser to recognize dynamically generated mobile number input, message textarea element id/names
+	my ($mob_elem) = $sm_form_tree->getElementsByAttribute('tabindex', "1");
+	if ($mob_elem) { # we have to consider tabindex=1 as mobile number input
+		$mech->field($mob_elem->getAttribute('id'), $self->{mobile});
+	}
+	my ($msg_elem) = $sm_form_tree->getElementsByAttribute('tabindex', "2");
+	if ($msg_elem) { # we have to consider tabindex=2 as message textarea
+		$mech->field($msg_elem->getAttribute('id'), $self->{message});
+	}
 	# submit form
-	$mech->submit_form();
+	$mech->submit();
+
 	
 	# is URL call Success?
 	if ($mech->success()) {
-		
+	
 		# Check sms sent successfully
 		my $response = $mech->response->content;
 		if($mech->response->header("Content-Encoding") eq "gzip") {
 			$response = Compress::Zlib::memGunzip($response) ;
 		}
 		# return 1(true) in case of success
-		return 1 if($response =~ m/SMS Sent Successfully/sig);
+		return 1 if($response =~ m/Your message has been Sent/sig);
 	}
 	# return undef as failure
 	return;
