@@ -1,6 +1,6 @@
 package Net::SMS::160By2;
 
-use warnings;
+no warnings;
 use strict;
 use Data::Dumper;
 # Load this to handle exceptions nicely
@@ -20,12 +20,11 @@ Net::SMS::160By2 - Send SMS using your 160By2 account!
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
-our $DEBUG = 1;
+our $VERSION = '0.03';
 
 our $HOME_URL       = 'http://160by2.com/Login';
 our $SENDSMS_URL     = 'http://160by2.com/FebSendSMS';
@@ -44,6 +43,13 @@ you can use this as follows.
     my $obj = Net::SMS::160By2->new($username, $password);
     
     $obj->send_sms($msg, $to);
+
+    # send additional params will print WWW::Mechanize detailed request and
+    # responses
+
+    my $debug_obj = Net::SMS::160By2->new($username, $password, {debug => 1});
+
+    $debug_obj->send_sms($msg, $to);
     
 Thats it!
     
@@ -57,6 +63,10 @@ input: username, password
 
 A new object will be created with username, password attributes.
 
+You can send additional params in a hash ref as 3rd parameter.
+
+at present only debug option is handled in additional params.
+
 output: Net::SMS::160By2 object
 
 =cut
@@ -67,7 +77,9 @@ sub new {
 	# read username and password
 	my $username = shift;
 	my $password = shift;
-	
+	my $extra = shift;
+	$extra = {} unless ref($extra) eq 'HASH';
+
 	# Throw error in case of no username or password
 	croak("No username provided") unless ($username);
 	croak("No password provided") unless ($password);
@@ -78,7 +90,8 @@ sub new {
 		'password' => $password,
 		'mobile'   => undef,
 		'message'  => undef,
-		'query_form' => undef
+		'query_form' => undef,
+		%{$extra}
 	}, $class;
 	return $self;
 }
@@ -107,6 +120,10 @@ sub send_sms {
 
 	# create mechanize object
 	my $mech = WWW::Mechanize->new(autocheck => 1);
+	if ($self->{debug}) {
+		$mech->add_handler("request_send", sub { shift->dump; return });
+		$mech->add_handler("response_done", sub { shift->dump; return });
+	}
 	$mech->agent_alias( 'Windows Mozilla' );
 	
 	# Now connect to 160By2 Website login page
@@ -192,6 +209,11 @@ sub _send {
 	if ($msg_elem) { # we have to consider tabindex=2 as message textarea
 		$mech->field($msg_elem->getAttribute('id'), $self->{message});
 	}
+	
+	# set additional params
+	my %params = @{$self->{query_form}};
+    $mech->field('hid_exists', "no");
+    $mech->field('feb2by2session', $params{id});
 	# submit form
 	$mech->submit();
 
