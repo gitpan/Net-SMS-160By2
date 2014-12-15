@@ -1,5 +1,8 @@
 Revision history for Net-SMS-160By2
 
+0.04    Mon Dec 15 21:53 2014
+        Fixed sending SMS as www.160By2.com changed its logic.
+
 0.03    Fri Feb 15 22:50 2013
         Added required additional params and debug mode enabled
 

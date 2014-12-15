@@ -14,9 +14,10 @@ WriteMakefile(
     PREREQ_PM => {
         'Test::More' => 0,
         'WWW::Mechanize' => 0,
-        'Compress::Zlib' => 0,
+        'HTML::Form' => 0,
+        'Data::Dumper' => 0,
+        'POSIX' => 0,
         'Carp' => 0,
-		'HTML::TagParser' => 0
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Net-SMS-160By2-*' },
